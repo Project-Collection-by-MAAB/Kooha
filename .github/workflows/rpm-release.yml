@@ -2,7 +2,10 @@ name: RPM Release
 
 on:
   release:
-    types: [published]
+    types:
+      - published
+
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -42,12 +45,20 @@ jobs:
             libappstream-glib \
             libxkbcommon-devel \
             wayland-devel \
-            pkgconfig
+            pkgconfig \
+            tar \
+            gzip \
+            findutils
 
       - name: Get version from release tag
         id: version
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+
           echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Vendor Rust dependencies
@@ -96,9 +107,12 @@ jobs:
         run: |
           find "${HOME}/rpmbuild" -name "*.rpm"
 
-      - name: Upload RPMs to release
+      - name: Upload RPMs to GitHub Release
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            ~/rpmbuild/RPMS/**/*.rpm
-            ~/rpmbuild/SRPMS/**/*.rpm
+            /github/home/rpmbuild/RPMS/**/*.rpm
+            /github/home/rpmbuild/SRPMS/**/*.rpm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
