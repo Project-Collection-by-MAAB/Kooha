@@ -501,12 +501,8 @@ impl Window {
                     .set_label(&format::digital_clock(gst::ClockTime::ZERO));
             }
             RecordingState::Starting => {
-                imp.pause_record_button
-                    .set_icon_name("media-playback-pause-symbolic");
-                imp.recording_label.set_label(&gettext("Recording"));
-                imp.recording_time_label.remove_css_class("paused");
-
-                imp.stack.set_visible_child(&*imp.recording_page);
+                imp.delay_label.set_label("…");
+                imp.stack.set_visible_child(&*imp.delay_page);
             }
             RecordingState::Delayed { secs_left } => {
                 imp.delay_label.set_label(&secs_left.to_string());
@@ -541,7 +537,9 @@ impl Window {
             "win.toggle-record",
             !matches!(
                 state,
-                RecordingState::Delayed { .. } | RecordingState::Flushing { .. }
+                RecordingState::Starting
+                    | RecordingState::Delayed { .. }
+                    | RecordingState::Flushing { .. }
             ),
         );
         self.action_set_enabled(
