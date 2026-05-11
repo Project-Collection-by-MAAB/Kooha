@@ -45,12 +45,12 @@
             <property name="action-name">win.toggle-record</property>
           </object>
         </child>
-        <!-- <child>
+        <child>
           <object class="AdwShortcutsItem">
             <property name="title" translatable="yes" context="shortcut window">Toggle Pause</property>
             <property name="action-name">win.toggle-pause</property>
           </object>
-        </child> -->
+        </child>
         <child>
           <object class="AdwShortcutsItem">
             <property name="title" translatable="yes" context="shortcut window">Cancel Record</property>

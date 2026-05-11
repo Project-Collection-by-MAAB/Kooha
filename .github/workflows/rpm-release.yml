@@ -1,0 +1,118 @@
+name: RPM Release
+
+on:
+  release:
+    types:
+      - published
+
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-rpm:
+    name: Build RPM Package
+    runs-on: ubuntu-latest
+
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+    container:
+      image: fedora:latest
+      options: --privileged
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+            rpm-build \
+            rpmdevtools \
+            rust \
+            cargo \
+            meson \
+            ninja-build \
+            gettext \
+            glib2-devel \
+            gtk4-devel \
+            libadwaita-devel \
+            gstreamer1-devel \
+            gstreamer1-plugins-base-devel \
+            desktop-file-utils \
+            libappstream-glib \
+            libxkbcommon-devel \
+            wayland-devel \
+            pkgconfig \
+            tar \
+            gzip \
+            findutils
+
+      - name: Get version from release tag
+        id: version
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.0-dev"
+          fi
+
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Vendor Rust dependencies
+        run: |
+          cargo vendor vendor
+
+      - name: Set up RPM build tree
+        run: |
+          rpmdev-setuptree
+
+      - name: Create source tarball
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          TARBALL_DIR="kooha-${VERSION}"
+
+          mkdir -p "/tmp/${TARBALL_DIR}"
+
+          cp -a . "/tmp/${TARBALL_DIR}/"
+
+          rm -rf "/tmp/${TARBALL_DIR}/.git"
+
+          tar -czf "${HOME}/rpmbuild/SOURCES/kooha-${VERSION}.tar.gz" \
+            -C /tmp \
+            "${TARBALL_DIR}"
+
+      - name: Update spec version
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+
+          sed -i \
+            "s/^Version:.*/Version:        ${VERSION}/" \
+            packaging/kooha.spec
+
+      - name: Build RPM
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+
+          cp packaging/kooha.spec \
+            "${HOME}/rpmbuild/SPECS/kooha.spec"
+
+          rpmbuild -ba \
+            "${HOME}/rpmbuild/SPECS/kooha.spec" \
+            --define "_version ${VERSION}"
+
+      - name: Show built RPMs
+        run: |
+          find "${HOME}/rpmbuild" -name "*.rpm"
+
+      - name: Upload RPMs to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            /github/home/rpmbuild/RPMS/**/*.rpm
+            /github/home/rpmbuild/SRPMS/**/*.rpm
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
