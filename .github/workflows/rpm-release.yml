@@ -52,11 +52,12 @@ jobs:
 
       - name: Get version from release tag
         id: version
+        shell: bash
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
           else
-            VERSION="0.0.0-dev"
+            VERSION="0.0.0"
           fi
 
           echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
