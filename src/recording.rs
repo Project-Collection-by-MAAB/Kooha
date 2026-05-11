@@ -50,6 +50,7 @@ impl error::Error for NoProfileError {}
 pub enum RecordingState {
     #[default]
     Init,
+    Starting,
     Delayed {
         secs_left: u64,
     },
@@ -147,6 +148,8 @@ impl Recording {
             tracing::error!("Trying to start recording on a non-init state");
             return;
         }
+
+        self.set_state(RecordingState::Starting);
 
         if let Err(err) = self.start_inner(parent, settings).await {
             self.close_session();
@@ -317,7 +320,10 @@ impl Recording {
         let state = self.state();
         if matches!(
             state,
-            RecordingState::Init | RecordingState::Flushing { .. } | RecordingState::Finished
+            RecordingState::Init
+                | RecordingState::Starting
+                | RecordingState::Flushing { .. }
+                | RecordingState::Finished
         ) {
             tracing::error!("Trying to stop recording on a `{:?}` state", state);
             return;

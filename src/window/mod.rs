@@ -171,7 +171,9 @@ impl Window {
             .is_some_and(|(recording, _)| {
                 matches!(
                     recording.state(),
-                    RecordingState::Recording
+                    RecordingState::Starting
+                        | RecordingState::Delayed { .. }
+                        | RecordingState::Recording
                         | RecordingState::Paused
                         | RecordingState::Flushing { .. }
                 )
@@ -195,6 +197,9 @@ impl Window {
             .as_ref()
             .map(|(recording, _)| recording.state())
         {
+            Some(RecordingState::Starting) | Some(RecordingState::Delayed { .. }) => gettext(
+                "A recording is about to start. Quitting immediately may prevent it from starting.",
+            ),
             Some(RecordingState::Recording) | Some(RecordingState::Paused) => gettext(
                 "A recording is currently in progress. Quitting immediately may cause the recording to be unplayable. Please stop the recording before quitting.",
             ),
@@ -335,7 +340,14 @@ impl Window {
         let imp = self.imp();
 
         if let Some((ref recording, _)) = *imp.recording.borrow() {
-            recording.stop();
+            if matches!(
+                recording.state(),
+                RecordingState::Starting | RecordingState::Delayed { .. }
+            ) {
+                recording.cancel();
+            } else {
+                recording.stop();
+            }
             return;
         }
 
@@ -488,6 +500,14 @@ impl Window {
                 imp.recording_time_label
                     .set_label(&format::digital_clock(gst::ClockTime::ZERO));
             }
+            RecordingState::Starting => {
+                imp.pause_record_button
+                    .set_icon_name("media-playback-pause-symbolic");
+                imp.recording_label.set_label(&gettext("Recording"));
+                imp.recording_time_label.remove_css_class("paused");
+
+                imp.stack.set_visible_child(&*imp.recording_page);
+            }
             RecordingState::Delayed { secs_left } => {
                 imp.delay_label.set_label(&secs_left.to_string());
 
@@ -532,7 +552,9 @@ impl Window {
             "win.cancel-record",
             matches!(
                 state,
-                RecordingState::Delayed { .. } | RecordingState::Flushing { .. }
+                RecordingState::Starting
+                    | RecordingState::Delayed { .. }
+                    | RecordingState::Flushing { .. }
             ),
         );
     }
