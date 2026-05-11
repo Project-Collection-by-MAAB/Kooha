@@ -70,6 +70,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.seadve.Kooh
 %{_datadir}/dbus-1/services/io.github.seadve.Kooha.service
 %{_datadir}/icons/hicolor/*/apps/io.github.seadve.Kooha*
 %{_datadir}/kooha/
+%{_datadir}/locale/*/LC_MESSAGES/kooha.mo
 
 %changelog
 * Mon May 11 2026 Dave Patrick Caberto <davecruz48@gmail.com> - 2.3.1-1
