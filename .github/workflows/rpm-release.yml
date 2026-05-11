@@ -1,0 +1,73 @@
+name: RPM Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-rpm:
+    name: Build RPM Package
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:latest
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          dnf install -y \
+            rpm-build rpmdevtools rust cargo meson ninja-build gettext \
+            glib2-devel gtk4-devel libadwaita-devel \
+            gstreamer1-devel gstreamer1-plugins-base-devel \
+            desktop-file-utils libappstream-glib \
+            libxkbcommon-devel wayland-devel \
+            pkgconfig
+
+      - name: Get version from release tag
+        id: version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "VERSION=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Vendor Rust dependencies
+        run: |
+          cargo vendor vendor
+
+      - name: Set up RPM build tree
+        run: rpmdev-setuptree
+
+      - name: Create source tarball
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          TARBALL_DIR="kooha-${VERSION}"
+          mkdir -p "/tmp/${TARBALL_DIR}"
+          cp -a . "/tmp/${TARBALL_DIR}/"
+          tar -czf "${HOME}/rpmbuild/SOURCES/kooha-${VERSION}.tar.gz" \
+            -C /tmp \
+            --exclude='.git' \
+            "${TARBALL_DIR}"
+
+      - name: Update spec version
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          sed -i "s/^Version:.*/Version:        ${VERSION}/" packaging/kooha.spec
+
+      - name: Build RPM
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          cp packaging/kooha.spec "${HOME}/rpmbuild/SPECS/kooha.spec"
+          rpmbuild -ba "${HOME}/rpmbuild/SPECS/kooha.spec" \
+            --define "_version ${VERSION}"
+
+      - name: Find built RPMs
+        id: find-rpms
+        run: |
+          RPMS=$(find "${HOME}/rpmbuild/RPMS" -name '*.rpm' | tr '\n' ' ')
+          echo "RPMS=${RPMS}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload RPMs to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find-rpms.outputs.RPMS }}
