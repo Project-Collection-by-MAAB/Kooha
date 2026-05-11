@@ -32,6 +32,7 @@ const REQUEST_IFACE_NAME: &str = "org.freedesktop.portal.Request";
 const SCREENCAST_IFACE_NAME: &str = "org.freedesktop.portal.ScreenCast";
 
 const PROXY_CALL_TIMEOUT: Duration = Duration::from_secs(5);
+const REQUEST_RESPONSE_TIMEOUT: Duration = Duration::from_secs(120);
 
 pub struct Proxy(gio::DBusProxy);
 
@@ -303,11 +304,23 @@ async fn screencast_request_call(
 
     tracing::trace!("Waiting request response for method `{}`", method);
 
-    let response = match future::select(response_rx, name_owner_lost_rx).await {
-        Either::Left((res, _)) => res
-            .with_context(|| Cancelled::new(method))
-            .context("Sender dropped")?,
-        Either::Right(_) => bail!("Lost name owner for request"),
+    let response = match future::select(
+        future::select(response_rx, name_owner_lost_rx),
+        glib::timeout_future(REQUEST_RESPONSE_TIMEOUT),
+    )
+    .await
+    {
+        Either::Left((request_res, _)) => match request_res {
+            Either::Left((res, _)) => res
+                .with_context(|| Cancelled::new(method))
+                .context("Sender dropped")?,
+            Either::Right(_) => bail!("Lost name owner for request"),
+        },
+        Either::Right(_) => bail!(
+            "Timed out waiting for portal response for `{}` after {:?}",
+            method,
+            REQUEST_RESPONSE_TIMEOUT
+        ),
     };
     request_proxy.disconnect(handler_id);
     drop(subscription);
