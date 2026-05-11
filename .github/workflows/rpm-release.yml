@@ -109,9 +109,9 @@ jobs:
           find "${HOME}/rpmbuild" -name "*.rpm"
 
       - name: Upload RPMs to GitHub Release
-        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
           files: |
             /github/home/rpmbuild/RPMS/**/*.rpm
             /github/home/rpmbuild/SRPMS/**/*.rpm
